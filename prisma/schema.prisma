@@ -1,0 +1,25 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Representação da tabela Aluno baseada no seu DER
+model Aluno {
+  id           String   @id @default(uuid())
+  cpf          String   @unique @db.VarChar(11)
+  nome         String   @db.VarChar(255)
+  email        String   @unique @db.VarChar(255)
+  senha_hash   String   @db.VarChar(255)
+  status_conta String   @default("ativo") @db.VarChar(20)
+  criado_em    DateTime @default(now())
+
+  @@map("alunos")
+}
