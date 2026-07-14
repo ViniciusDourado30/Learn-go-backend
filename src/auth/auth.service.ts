@@ -2,50 +2,64 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
+import { PrismaService } from '../prisma.service';
 
 @Injectable()
 export class AuthService {
-  constructor(private jwtService: JwtService) {}
+  constructor(
+    private jwtService: JwtService,
+    private prisma: PrismaService,
+  ) {}
 
   async login(loginDto: LoginDto) {
     const { email, senha } = loginDto;
 
-    // TODO: Substituir este bloco pela busca real no seu banco Supabase/PostgreSQL
-    // Simulando um usuário retornado do banco de dados:
-    const usuarioMock = {
-      id: 'uuid-1234',
-      email: 'aluno@gmail.com',
-      // Hash simulado para a senha 'Digite123'
-      senha_hash: await bcrypt.hash('Digite123', 10),
-      tipo: 'aluno',
-    };
+    const aluno = await this.prisma.aluno.findUnique({
+      where: { email },
+    });
 
-    // 1. Verifica se o usuário existe (aqui estamos forçando o mock)
-    if (email !== usuarioMock.email) {
+    if (!aluno) {
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
-    // 2. Compara a senha enviada no body com o hash salvo no banco
-    const senhaValida = await bcrypt.compare(senha, usuarioMock.senha_hash);
+    const senhaValida = await bcrypt.compare(senha, aluno.senha_hash);
 
     if (!senhaValida) {
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
-    // 3. Se deu tudo certo, gera o Token JWT com os dados do usuário
     const payload = {
-      sub: usuarioMock.id,
-      email: usuarioMock.email,
-      tipo: usuarioMock.tipo,
+      sub: aluno.id,
+      email: aluno.email,
+      tipo: 'aluno',
     };
 
     return {
       access_token: await this.jwtService.signAsync(payload),
       usuario: {
-        id: usuarioMock.id,
-        email: usuarioMock.email,
-        tipo: usuarioMock.tipo,
+        id: aluno.id,
+        nome: aluno.nome,
+        email: aluno.email,
+        status: aluno.status_conta,
       },
     };
+  }
+
+  // --- ROTA TEMPORÁRIA PARA O TESTE ---
+  async criarAlunoTeste() {
+    // 1. Gera o hash de segurança para a senha 'Senha123'
+    const senhaCriptografada = await bcrypt.hash('Senha123', 10);
+
+    // 2. Salva o usuário no Supabase
+    const aluno = await this.prisma.aluno.create({
+      data: {
+        cpf: '12345678901',
+        nome: 'Aluno de Teste TCC',
+        email: 'aluno@teste.com',
+        senha_hash: senhaCriptografada,
+      },
+    });
+
+    return { mensagem: 'Aluno criado com sucesso no banco!', aluno };
   }
 }
