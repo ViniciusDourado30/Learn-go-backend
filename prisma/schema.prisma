@@ -11,15 +11,58 @@ datasource db {
   provider = "postgresql"
 }
 
-// Representação da tabela Aluno baseada no seu DER
-model Aluno {
-  id           String   @id @default(uuid())
-  cpf          String   @unique @db.VarChar(11)
-  nome         String   @db.VarChar(255)
-  email        String   @unique @db.VarChar(255)
-  senha_hash   String   @db.VarChar(255)
-  status_conta String   @default("ativo") @db.VarChar(20)
-  criado_em    DateTime @default(now())
+// Extensão para suportar busca vetorial de rostos
+// No Supabase, você precisará executar: CREATE EXTENSION IF NOT EXISTS vector;
+enum Role {
+  ALUNO
+  PROFESSOR
+}
 
-  @@map("alunos")
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  senha_hash   String
+  role         Role
+  criado_em    DateTime  @default(now())
+  
+  alunoProfile     AlunoProfile?
+  professorProfile ProfessorProfile?
+
+  @@map("users")
+}
+
+model AlunoProfile {
+  id        String @id @default(uuid())
+  userId    String @unique
+  user      User   @relation(fields: [userId], references: [id])
+  
+  nome      String
+  sobrenome String
+  idade     Int
+  pais      String
+  estado    String
+  cidade    String
+  
+  // O tipo 'Unsupported' é usado pois o Prisma ainda não tem suporte nativo ao tipo vector
+  biometria_vector Unsupported("vector(128)")? 
+
+  @@map("aluno_profiles")
+}
+
+model ProfessorProfile {
+  id           String @id @default(uuid())
+  userId       String @unique
+  user         User   @relation(fields: [userId], references: [id])
+  
+  nome         String
+  sobrenome    String
+  idade        Int
+  pais         String
+  estado       String
+  cidade       String
+  comprovante_url String? 
+  
+  biometria_vector Unsupported("vector(128)")?
+
+  @@map("professor_profiles")
 }

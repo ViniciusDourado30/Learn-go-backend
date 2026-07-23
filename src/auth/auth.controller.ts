@@ -1,11 +1,13 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Get, UseGuards, Request } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, Get, UseGuards, Request, Patch, Delete } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { AuthGuard } from './auth.guard';
+import { RegisterDto } from './dto/register.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @HttpCode(HttpStatus.OK)
   @Post('login')
@@ -13,9 +15,24 @@ export class AuthController {
     return this.authService.login(loginDto);
   }
 
-  @Post('criar-teste')
-  async criarTeste() {
-    return this.authService.criarAlunoTeste();
+  @Post('register')
+  async register(@Body() registerDto: RegisterDto) {
+    return this.authService.register(registerDto);
+  }
+
+  // Não esqueça de importar o UpdateProfileDto lá em cima!
+  
+  @UseGuards(AuthGuard)
+  @Patch('perfil')
+  async atualizarPerfil(@Request() req, @Body() updateDto: UpdateProfileDto) {
+    // O Guard garante que req.user existe e tem os dados do token (sub = ID, role = ALUNO/PROFESSOR)
+    return this.authService.updateProfile(req.user.sub, req.user.role, updateDto);
+  }
+
+  @UseGuards(AuthGuard)
+  @Delete('perfil')
+  async excluirConta(@Request() req) {
+    return this.authService.deleteAccount(req.user.sub);
   }
 
   // --- NOVA ROTA PROTEGIDA PELO GUARD ---
