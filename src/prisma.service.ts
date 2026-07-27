@@ -1,4 +1,3 @@
-import 'dotenv/config'; // <-- 1. Força o NestJS a ler a sua URL dentro do .env
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { Pool } from 'pg';
@@ -8,9 +7,9 @@ import { PrismaPg } from '@prisma/adapter-pg';
 export class PrismaService extends PrismaClient implements OnModuleInit {
   constructor() {
     const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
+      connectionString: "postgresql://postgres.lydiqnfnbtjakovucxqc:Vinicius0506%23@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
       ssl: {
-        rejectUnauthorized: false, // <-- 2. Autoriza o SSL exigido pelo Supabase
+        rejectUnauthorized: false,
       },
     });
     
