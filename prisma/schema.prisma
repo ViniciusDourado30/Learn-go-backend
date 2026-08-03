@@ -158,3 +158,32 @@ model DisponibilidadeBloco {
 
   @@map("disponibilidade_blocos")
 }
+
+model AulaAgendada {
+  id            String   @id @default(uuid())
+  
+  // Relacionamento com quem agendou (Aluno)
+  alunoId       String
+  aluno         User     @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  
+  // Relacionamento com quem vai dar a aula (Professor)
+  professorId   String
+  professor     ProfessorProfile @relation(fields: [professorId], references: [id], onDelete: Cascade)
+
+  // Dados do agendamento vindos do Front
+  data_aula     String   // Formato YYYY-MM-DD
+  hora_inicio   String   // Ex: "09:00"
+  hora_fim      String   // Ex: "10:00"
+  preco_cobrado Float    // Preço no momento do agendamento
+  assunto       String?  // Opcional ("O que gostaria de estudar?")
+
+  // Gerado pelo Backend
+  link_reuniao  String   // O link da call gerado automaticamente
+  
+  // Controle de fluxo da plataforma
+  status        String   @default("AGENDADA") // Pode ser: AGENDADA, REALIZADA, PENDENTE_PAGAMENTO, PAGA, CANCELADA
+
+  criado_em     DateTime @default(now())
+
+  @@map("aulas_agendadas")
+}
