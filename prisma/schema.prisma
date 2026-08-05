@@ -26,6 +26,8 @@ model User {
   alunoProfile     AlunoProfile?
   professorProfile ProfessorProfile?
 
+  aulasAgendadas AulaAgendada[]
+
   @@map("users")
 }
 
@@ -90,6 +92,7 @@ model ProfessorProfile {
   // Relacionamento com os cursos criados por este professor
   cursos           Curso[]
   disponibilidades DisponibilidadeBloco[]
+  aulasAgendadas AulaAgendada[]
 
   @@map("professor_profiles")
 }
@@ -178,12 +181,13 @@ model AulaAgendada {
   assunto       String?  // Opcional ("O que gostaria de estudar?")
 
   // Gerado pelo Backend
-  link_reuniao  String   // O link da call gerado automaticamente
+  link_reuniao        String?  // Agora é opcional, pois só será gerado APÓS o pagamento
+  id_reuniao_zoom     String?  // Vamos guardar o ID oficial do Zoom aqui
   
-  // Controle de fluxo da plataforma
-  status        String   @default("AGENDADA") // Pode ser: AGENDADA, REALIZADA, PENDENTE_PAGAMENTO, PAGA, CANCELADA
+  stripe_payment_id   String?  
+  status              String   @default("PENDENTE_PAGAMENTO") 
 
-  criado_em     DateTime @default(now())
-
+  criado_em           DateTime @default(now())
+  
   @@map("aulas_agendadas")
 }

@@ -1,11 +1,17 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { StripeService } from './stripe.service';
+import { ZoomService } from './zoom.service';
 import { CreateAgendamentoDto } from './dto/create-agendamento.dto';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class AgendamentosService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private stripeService: StripeService,
+    private zoomService: ZoomService
+  ) {}
 
   async agendarAula(alunoId: string, dto: CreateAgendamentoDto) {
     const professor = await this.prisma.professorProfile.findUnique({
@@ -90,5 +96,38 @@ export class AgendamentosService {
 
     // Retorna apenas um array com as strings das horas ocupadas. Ex: ["09:00", "14:00"]
     return aulas.map(aula => aula.hora_inicio);
+  }
+
+  // Adicione essa função no AgendamentosService
+
+  async fecharAulasDoDia(dataAula: string) {
+    // Busca todas as aulas que estavam agendadas para hoje
+    const aulas = await this.prisma.aulaAgendada.findMany({
+      where: { data_aula: dataAula, status: 'AGENDADA' }
+    });
+
+    for (const aula of aulas) {
+      if (!aula.id_reuniao_zoom) continue;
+
+      // Chama a auditoria antifraude do Zoom
+      const aulaAconteceu = await this.zoomService.verificarSeAulaAconteceu(aula.id_reuniao_zoom);
+
+      if (aulaAconteceu) {
+        // Aula confirmada! O professor recebe.
+        await this.prisma.aulaAgendada.update({
+          where: { id: aula.id },
+          data: { status: 'REALIZADA' }
+        });
+        // Aqui você acionaria o Stripe Connect para transferir o $ pro professor
+      } else {
+        // Fraude ou o professor faltou. Estorna o cartão do aluno!
+        await this.stripeService.reembolsarPagamento(aula.stripe_payment_id);
+        
+        await this.prisma.aulaAgendada.update({
+          where: { id: aula.id },
+          data: { status: 'CANCELADA_REEMBOLSADA' }
+        });
+      }
+    }
   }
 }
