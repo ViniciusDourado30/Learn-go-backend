@@ -19,8 +19,6 @@ export class AuthController {
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
   }
-
-  // Não esqueça de importar o UpdateProfileDto lá em cima!
   
   @UseGuards(AuthGuard)
   @Patch('perfil')
@@ -35,7 +33,7 @@ export class AuthController {
     return this.authService.deleteAccount(req.user.sub);
   }
 
-  // --- NOVA ROTA PROTEGIDA PELO GUARD ---
+  // --- ROTA PROTEGIDA PELO GUARD ---
   @UseGuards(AuthGuard)
   @Get('perfil')
   getPerfil(@Request() req) {

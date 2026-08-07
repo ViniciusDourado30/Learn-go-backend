@@ -1,5 +1,4 @@
-// src/auth/dto/register.dto.ts
-import { IsString, IsEmail, IsNotEmpty, IsEnum, IsNumber, IsOptional, IsArray } from 'class-validator';
+import { IsString, IsEmail, IsEnum, IsNumber, IsOptional, MinLength } from 'class-validator';
 
 export enum Role {
   ALUNO = 'ALUNO',
@@ -7,21 +6,21 @@ export enum Role {
 }
 
 export class RegisterDto {
-  @IsEmail()
-  email!: string;
-
-  @IsString()
-  senha!: string;
-
-  @IsEnum(Role)
-  role!: Role;
-
-  // Dados comuns
   @IsString()
   nome!: string;
 
   @IsString()
   sobrenome!: string;
+
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  @MinLength(6)
+  password!: string;
+
+  @IsEnum(Role)
+  role!: Role;
 
   @IsNumber()
   idade!: number;
@@ -35,13 +34,15 @@ export class RegisterDto {
   @IsString()
   cidade!: string;
 
-  // Biometria (o vetor que vem do frontend)
-  @IsArray()
-  @IsOptional()
-  biometria_vector?: number[]; 
-
-  // Apenas para Professor
-  @IsOptional()
   @IsString()
-  comprovante_url?: string;
+  @IsOptional()
+  telefone?: string;
+
+  @IsString()
+  @IsOptional()
+  formacao?: string;
+
+  @IsString()
+  @IsOptional()
+  linkedin?: string;
 }

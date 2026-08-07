@@ -16,11 +16,24 @@ datasource db {
 // ==========================================
 
 model User {
-  id               String            @id @default(uuid())
-  email            String            @unique
-  senha_hash       String
-  role             String            // 'ALUNO' ou 'PROFESSOR'
-  criado_em        DateTime          @default(now())
+  id        String   @id @default(uuid())
+  nome      String
+  sobrenome String
+  email     String   @unique
+  password  String
+  role      Role     @default(ALUNO)
+  
+  // Novos campos do frontend
+  idade     Int?
+  pais      String?
+  estado    String?
+  cidade    String?
+  telefone  String?
+  formacao  String?
+  linkedin  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   
   // Relacionamentos inversos para o Prisma entender a conexão
   alunoProfile     AlunoProfile?
@@ -29,6 +42,11 @@ model User {
   aulasAgendadas AulaAgendada[]
 
   @@map("users")
+}
+
+enum Role {
+  ALUNO
+  PROFESSOR
 }
 
 // ==========================================
@@ -54,9 +72,6 @@ model AlunoProfile {
   idioma           String?
   sobre            String?
   foto_url         String? 
-  
-  // Vetor de 128 dimensões para login facial
-  biometria_vector Unsupported("vector(128)")? 
 
   @@map("aluno_profiles")
 }
@@ -81,9 +96,6 @@ model ProfessorProfile {
   idioma           String?
   sobre            String?
   foto_url         String? 
-  
-  // Vetor de 128 dimensões para login facial
-  biometria_vector Unsupported("vector(128)")?
 
   duracao_aula     Int      @default(60)
   intervalo_aula   Int      @default(0)
@@ -163,31 +175,31 @@ model DisponibilidadeBloco {
 }
 
 model AulaAgendada {
-  id            String   @id @default(uuid())
+  id                String   @id @default(uuid())
   
   // Relacionamento com quem agendou (Aluno)
-  alunoId       String
-  aluno         User     @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  alunoId           String
+  aluno             User     @relation(fields: [alunoId], references: [id], onDelete: Cascade)
   
   // Relacionamento com quem vai dar a aula (Professor)
-  professorId   String
-  professor     ProfessorProfile @relation(fields: [professorId], references: [id], onDelete: Cascade)
+  professorId       String
+  professor         ProfessorProfile @relation(fields: [professorId], references: [id], onDelete: Cascade)
 
   // Dados do agendamento vindos do Front
-  data_aula     String   // Formato YYYY-MM-DD
-  hora_inicio   String   // Ex: "09:00"
-  hora_fim      String   // Ex: "10:00"
-  preco_cobrado Float    // Preço no momento do agendamento
-  assunto       String?  // Opcional ("O que gostaria de estudar?")
+  data_aula         String   // Formato YYYY-MM-DD
+  hora_inicio       String   // Ex: "09:00"
+  hora_fim          String   // Ex: "10:00"
+  preco_cobrado     Float    // Preço no momento do agendamento
+  assunto           String?  // Opcional ("O que gostaria de estudar?")
 
   // Gerado pelo Backend
-  link_reuniao        String?  // Agora é opcional, pois só será gerado APÓS o pagamento
-  id_reuniao_zoom     String?  // Vamos guardar o ID oficial do Zoom aqui
+  link_reuniao      String?  // Agora é opcional, pois só será gerado APÓS o pagamento
+  id_reuniao_zoom   String?  // Vamos guardar o ID oficial do Zoom aqui
   
-  stripe_payment_id   String?  
-  status              String   @default("PENDENTE_PAGAMENTO") 
+  stripe_payment_id String?  
+  status            String   @default("PENDENTE_PAGAMENTO") 
 
-  criado_em           DateTime @default(now())
+  criado_em         DateTime @default(now())
   
   @@map("aulas_agendadas")
 }
