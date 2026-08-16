@@ -121,7 +121,9 @@ export class AgendamentosService {
         // Aqui você acionaria o Stripe Connect para transferir o $ pro professor
       } else {
         // Fraude ou o professor faltou. Estorna o cartão do aluno!
-        await this.stripeService.reembolsarPagamento(aula.stripe_payment_id);
+        if (aula.stripe_payment_id) { // <-- Adicionamos esta verificação
+          await this.stripeService.reembolsarPagamento(aula.stripe_payment_id);
+        }
         
         await this.prisma.aulaAgendada.update({
           where: { id: aula.id },

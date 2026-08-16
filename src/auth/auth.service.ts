@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { RegisterDto } from './dto/register.dto';
@@ -7,87 +7,74 @@ import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
-  constructor(
-    private prisma: PrismaService,
-    private jwtService: JwtService,
-  ) {}
+  constructor(private prisma: PrismaService, private jwtService: JwtService) {}
 
   async register(data: RegisterDto) {
-    // 1. Verifica se o email já existe
-    const userExists = await this.prisma.user.findUnique({
-      where: { email: data.email },
-    });
-
-    if (userExists) {
-      throw new BadRequestException('E-mail já está em uso.');
-    }
-
-    // 2. Criptografa a senha
+    const userExists = await this.prisma.user.findUnique({ where: { email: data.email } });
+    if (userExists) throw new BadRequestException('E-mail já está em uso.');
     const hashedPassword = await bcrypt.hash(data.password, 10);
-
-    // 3. Salva o usuário no Prisma fazendo o mapeamento exato dos campos
     const user = await this.prisma.user.create({
       data: {
-        nome: data.nome,
-        sobrenome: data.sobrenome,
-        email: data.email,
-        password: hashedPassword,
-        role: data.role,
-        idade: data.idade,
-        pais: data.pais,
-        estado: data.estado,
-        cidade: data.cidade,
-        telefone: data.telefone,
-        formacao: data.formacao,
-        linkedin: data.linkedin,
+        nome: data.nome, sobrenome: data.sobrenome, email: data.email, password: hashedPassword,
+        role: data.role, idade: data.idade, pais: data.pais, estado: data.estado,
+        cidade: data.cidade, telefone: data.telefone, formacao: data.formacao, linkedin: data.linkedin,
       },
     });
-
-    // 4. Remove a senha do objeto antes de devolver a resposta
     delete (user as any).password;
     return user;
   }
 
   async login(data: LoginDto) {
-    // 1. Busca o usuário
-    const user = await this.prisma.user.findUnique({
-      where: { email: data.email },
-    });
-
-    if (!user) {
-      throw new UnauthorizedException('Credenciais inválidas.');
-    }
-
-    // 2. Compara a senha criptografada
+    const user = await this.prisma.user.findUnique({ where: { email: data.email } });
+    if (!user) throw new UnauthorizedException('Credenciais inválidas.');
     const isPasswordValid = await bcrypt.compare(data.password, user.password);
-
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Credenciais inválidas.');
-    }
-
-    // 3. Gera o Token JWT
+    if (!isPasswordValid) throw new UnauthorizedException('Credenciais inválidas.');
     const payload = { sub: user.id, email: user.email, role: user.role };
-
     return {
       access_token: await this.jwtService.signAsync(payload),
-      user: {
-        id: user.id,
-        nome: user.nome,
-        sobrenome: user.sobrenome,
-        email: user.email,
-        role: user.role,
-      },
+      user: { id: user.id, nome: user.nome, sobrenome: user.sobrenome, email: user.email, role: user.role },
     };
   }
 
-  // Métodos adicionados para evitar erros no seu AuthController
+  async getProfile(userId: string, role: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const profile = role === 'ALUNO' 
+      ? await this.prisma.alunoProfile.findUnique({ where: { userId } })
+      : await this.prisma.professorProfile.findUnique({ where: { userId } });
+    return { user, profile };
+  }
+
   async updateProfile(userId: string, role: string, updateDto: any) {
-    // Lógica futura de atualização de perfil
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('Usuário não encontrado');
+    const baseData = { userId, nome: user.nome, sobrenome: user.sobrenome, idade: user.idade || 0, pais: user.pais || '', estado: user.estado || '', cidade: user.cidade || '' };
+    
+    // Atualiza tabela User base
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { telefone: updateDto.telefone, pais: updateDto.pais, estado: updateDto.estado, cidade: updateDto.cidade }
+    });
+
+    if (role === 'ALUNO') {
+      await this.prisma.alunoProfile.upsert({ where: { userId }, update: updateDto, create: { ...baseData, ...updateDto } });
+    } else {
+      await this.prisma.professorProfile.upsert({ where: { userId }, update: updateDto, create: { ...baseData, ...updateDto } });
+    }
     return { message: "Perfil atualizado com sucesso!" };
   }
 
   async deleteAccount(userId: string) {
-    // Lógica futura de exclusão de conta
+    await this.prisma.user.delete({ where: { id: userId } });
     return { message: "Conta excluída com sucesso!" };
+  }
+
+  async listarProfessores() {
+    return this.prisma.professorProfile.findMany({ include: { user: { select: { email: true } } } });
+  }
+
+  async obterProfessor(id: string) {
+    const prof = await this.prisma.professorProfile.findUnique({ where: { id }, include: { user: { select: { email: true } } } });
+    if (!prof) throw new NotFoundException('Professor não encontrado.');
+    return prof;
   }
 }

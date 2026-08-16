@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,10 +6,6 @@ datasource db {
   provider = "postgresql"
 }
 
-// ==========================================
-// AUTENTICAÇÃO E USUÁRIOS
-// ==========================================
-
 model User {
   id        String   @id @default(uuid())
   nome      String
@@ -22,8 +13,6 @@ model User {
   email     String   @unique
   password  String
   role      Role     @default(ALUNO)
-  
-  // Novos campos do frontend
   idade     Int?
   pais      String?
   estado    String?
@@ -31,15 +20,13 @@ model User {
   telefone  String?
   formacao  String?
   linkedin  String?
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
-  // Relacionamentos inversos para o Prisma entender a conexão
   alunoProfile     AlunoProfile?
   professorProfile ProfessorProfile?
-
-  aulasAgendadas AulaAgendada[]
+  aulasAgendadas   AulaAgendada[]
+  matriculas       MatriculaCurso[]
 
   @@map("users")
 }
@@ -49,39 +36,29 @@ enum Role {
   PROFESSOR
 }
 
-// ==========================================
-// PERFIS
-// ==========================================
-
 model AlunoProfile {
-  id               String   @id @default(uuid())
-  userId           String   @unique
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade) 
-  
-  // Dados obrigatórios do registro
-  nome             String
-  sobrenome        String
-  idade            Int
-  pais             String
-  estado           String
-  cidade           String
-  
-  // Dados opcionais da tela de edição de perfil
-  telefone         String?
-  ocupacao         String?
-  idioma           String?
-  sobre            String?
-  foto_url         String? 
+  id        String  @id @default(uuid())
+  userId    String  @unique
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade) 
+  nome      String
+  sobrenome String
+  idade     Int
+  pais      String
+  estado    String
+  cidade    String
+  telefone  String?
+  ocupacao  String?
+  idioma    String?
+  sobre     String?
+  foto_url  String? 
 
   @@map("aluno_profiles")
 }
 
 model ProfessorProfile {
-  id               String   @id @default(uuid())
-  userId           String   @unique
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  // Dados obrigatórios do registro
+  id               String  @id @default(uuid())
+  userId           String  @unique
+  user             User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   nome             String
   sobrenome        String
   idade            Int
@@ -89,29 +66,24 @@ model ProfessorProfile {
   estado           String
   cidade           String
   comprovante_url  String? 
-  
-  // Dados opcionais da tela de edição de perfil
   telefone         String?
   ocupacao         String?
-  idioma           String?
+  idiomas          String[] // Add from UI
+  especialidades   String[] // Add from UI
   sobre            String?
   foto_url         String? 
+  rating           Float   @default(5.0)
+  total_reviews    Int     @default(0)
+  duracao_aula     Int     @default(60)
+  intervalo_aula   Int     @default(0)
+  preco_medio      Float   @default(0.0)
 
-  duracao_aula     Int      @default(60)
-  intervalo_aula   Int      @default(0)
-  preco_medio      Float    @default(0.0)
-
-  // Relacionamento com os cursos criados por este professor
   cursos           Curso[]
   disponibilidades DisponibilidadeBloco[]
-  aulasAgendadas AulaAgendada[]
+  aulasAgendadas   AulaAgendada[]
 
   @@map("professor_profiles")
 }
-
-// ==========================================
-// ESTRUTURA DE CURSOS
-// ==========================================
 
 model Curso {
   id          String   @id @default(uuid())
@@ -120,86 +92,74 @@ model Curso {
   preco       Float
   categoria   String
   capa_url    String?
-  
-  // Relação: Qual professor é o dono deste curso?
+  cliques     Int      @default(0)
   professorId String
   professor   ProfessorProfile @relation(fields: [professorId], references: [id], onDelete: Cascade)
-  
-  // Relação: Um curso tem vários módulos
   modulos     Modulo[]
-  
+  matriculas  MatriculaCurso[]
   criado_em   DateTime @default(now())
-
   @@map("cursos")
 }
 
 model Modulo {
   id        String  @id @default(uuid())
-  titulo    String  // Ex: "Módulo 1"
-  ordem     Int     // Posição do módulo no curso
-  
-  // Relação: A qual curso este módulo pertence?
+  titulo    String  
+  ordem     Int     
   cursoId   String
   curso     Curso   @relation(fields: [cursoId], references: [id], onDelete: Cascade)
-  
-  // Relação: Um módulo tem várias aulas
   aulas     Aula[]
-
   @@map("modulos")
 }
 
 model Aula {
   id        String  @id @default(uuid())
-  titulo    String  // Nome da aula
-  video_url String? // URL do vídeo no storage/YouTube/Vimeo
-  ordem     Int     // Posição da aula dentro do módulo
-  
-  // Relação: A qual módulo esta aula pertence?
+  titulo    String  
+  video_url String? 
+  ordem     Int     
   moduloId  String
   modulo    Modulo  @relation(fields: [moduloId], references: [id], onDelete: Cascade)
-
   @@map("aulas")
+}
+
+model MatriculaCurso {
+  id        String   @id @default(uuid())
+  alunoId   String
+  aluno     User     @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  cursoId   String
+  curso     Curso    @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  progresso Int      @default(0)
+  criado_em DateTime @default(now())
+
+  @@unique([alunoId, cursoId])
+  @@map("matriculas_cursos")
 }
 
 model DisponibilidadeBloco {
   id          String @id @default(uuid())
   professorId String
   professor   ProfessorProfile @relation(fields: [professorId], references: [id], onDelete: Cascade)
-
-  dia_semana  Int    // 0 = Domingo, 1 = Segunda, 2 = Terça... 6 = Sábado
-  hora_inicio String // Ex: "09:00"
-  hora_fim    String // Ex: "18:00"
-  preco       Float  // Preço cobrado neste bloco
-
+  dia_semana  Int    
+  hora_inicio String 
+  hora_fim    String 
+  preco       Float  
   @@map("disponibilidade_blocos")
 }
 
 model AulaAgendada {
   id                String   @id @default(uuid())
-  
-  // Relacionamento com quem agendou (Aluno)
   alunoId           String
   aluno             User     @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  
-  // Relacionamento com quem vai dar a aula (Professor)
   professorId       String
   professor         ProfessorProfile @relation(fields: [professorId], references: [id], onDelete: Cascade)
-
-  // Dados do agendamento vindos do Front
-  data_aula         String   // Formato YYYY-MM-DD
-  hora_inicio       String   // Ex: "09:00"
-  hora_fim          String   // Ex: "10:00"
-  preco_cobrado     Float    // Preço no momento do agendamento
-  assunto           String?  // Opcional ("O que gostaria de estudar?")
-
-  // Gerado pelo Backend
-  link_reuniao      String?  // Agora é opcional, pois só será gerado APÓS o pagamento
-  id_reuniao_zoom   String?  // Vamos guardar o ID oficial do Zoom aqui
-  
+  data_aula         String   
+  hora_inicio       String   
+  hora_fim          String   
+  preco_cobrado     Float    
+  assunto           String?  
+  link_reuniao      String?  
+  id_reuniao_zoom   String?  
   stripe_payment_id String?  
   status            String   @default("PENDENTE_PAGAMENTO") 
-
   criado_em         DateTime @default(now())
-  
   @@map("aulas_agendadas")
 }
