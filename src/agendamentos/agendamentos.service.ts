@@ -58,6 +58,16 @@ export class AgendamentosService {
       },
     });
 
+    // Notifica o professor
+    await this.prisma.notificacao.create({
+      data: {
+        userId: professor.userId,
+        tipo: 'class',
+        titulo: 'Nova aula agendada',
+        descricao: `Uma aula foi agendada para ${dto.data_aula} às ${dto.hora_inicio}.`
+      }
+    });
+
     return { message: 'Aula agendada com sucesso!', aula };
   }
 
@@ -65,7 +75,7 @@ export class AgendamentosService {
   async listarAulasDoAluno(alunoId: string) {
     return this.prisma.aulaAgendada.findMany({
       where: { alunoId: alunoId },
-      include: { professor: { select: { id: true } } }, // Aqui você pode incluir nome/foto depois
+      include: { professor: { select: { id: true, nome: true, sobrenome: true, foto_url: true } } },
       orderBy: { data_aula: 'asc' }
     });
   }
@@ -78,7 +88,7 @@ export class AgendamentosService {
 
     return this.prisma.aulaAgendada.findMany({
       where: { professorId: professor.id },
-      include: { aluno: { select: { id: true, email: true } } }, // Traz o objeto do aluno!
+      include: { aluno: { select: { id: true, nome: true, sobrenome: true, email: true } } },
       orderBy: { data_aula: 'asc' }
     });
   }

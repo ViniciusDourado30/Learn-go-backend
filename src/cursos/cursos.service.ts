@@ -26,13 +26,18 @@ export class CursosService {
   }
 
   async listarTodos() {
-    return this.prisma.curso.findMany({ include: { professor: true }, orderBy: { criado_em: 'desc' } });
+    const cursos = await this.prisma.curso.findMany({ include: { professor: true, modulos: { include: { aulas: true }, orderBy: { ordem: 'asc' } } }, orderBy: { criado_em: 'desc' } });
+    return cursos.map(c => {
+      const duracao_total_minutos = c.modulos.reduce((acc, m) => acc + m.aulas.reduce((a, aula) => a + (aula.duracao_minutos || 0), 0), 0);
+      return { ...c, duracao_total_minutos };
+    });
   }
 
   async obterDestaque() {
-    const curso = await this.prisma.curso.findFirst({ orderBy: { cliques: 'desc' }, include: { professor: true } });
+    const curso = await this.prisma.curso.findFirst({ orderBy: { cliques: 'desc' }, include: { professor: true, modulos: { include: { aulas: true }, orderBy: { ordem: 'asc' } } } });
     if (!curso) throw new NotFoundException('Nenhum curso encontrado.');
-    return curso;
+    const duracao_total_minutos = curso.modulos.reduce((acc, m) => acc + m.aulas.reduce((a, aula) => a + (aula.duracao_minutos || 0), 0), 0);
+    return { ...curso, duracao_total_minutos };
   }
 
   async registrarClique(cursoId: string) {
@@ -40,9 +45,10 @@ export class CursosService {
   }
 
   async obterCurso(id: string) {
-    const curso = await this.prisma.curso.findUnique({ where: { id }, include: { professor: true, modulos: { include: { aulas: true }, orderBy: { ordem: 'asc' } } } });
+    const curso = await this.prisma.curso.findUnique({ where: { id }, include: { professor: true, modulos: { include: { aulas: { include: { materiais: true, progressos: true, duvidas: { include: { aluno: true, respostas: { include: { autor: true } } } } } } }, orderBy: { ordem: 'asc' } } } });
     if (!curso) throw new NotFoundException('Curso não encontrado.');
-    return curso;
+    const duracao_total_minutos = curso.modulos.reduce((acc, m) => acc + m.aulas.reduce((a, aula) => a + (aula.duracao_minutos || 0), 0), 0);
+    return { ...curso, duracao_total_minutos };
   }
 
   async matricularAluno(userId: string, cursoId: string) {
@@ -56,7 +62,29 @@ export class CursosService {
   }
 
   async listarMeusCursos(userId: string) {
-    const matriculas = await this.prisma.matriculaCurso.findMany({ where: { alunoId: userId }, include: { curso: { include: { professor: true, modulos: { include: { aulas: true } } } } } });
-    return matriculas.map(m => ({ ...m.curso, progress: m.progresso }));
+    const matriculas = await this.prisma.matriculaCurso.findMany({ where: { alunoId: userId }, include: { curso: { include: { professor: true, modulos: { include: { aulas: { include: { materiais: true, progressos: true, duvidas: { include: { aluno: true, respostas: { include: { autor: true } } } } } } } } } } } });
+    return matriculas.map(m => {
+      const duracao_total_minutos = m.curso.modulos.reduce((acc, mod) => acc + mod.aulas.reduce((a, aula) => a + (aula.duracao_minutos || 0), 0), 0);
+      return { ...m.curso, progress: m.progresso, duracao_total_minutos };
+    });
+  }
+
+  async adicionarDuvida(userId: string, aulaId: string, texto: string) {
+    return this.prisma.duvidaAula.create({
+      data: {
+        texto,
+        aulaId,
+        alunoId: userId
+      },
+      include: { aluno: true, respostas: { include: { autor: true } } }
+    });
+  }
+
+  async registrarProgresso(userId: string, aulaId: string) {
+    return this.prisma.progressoAula.upsert({
+      where: { alunoId_aulaId: { alunoId: userId, aulaId } },
+      update: { concluida: true },
+      create: { alunoId: userId, aulaId, concluida: true }
+    });
   }
 }

@@ -21,6 +21,12 @@ export class AuthController {
   async atualizarPerfil(@Request() req, @Body() updateDto: UpdateProfileDto) { return this.authService.updateProfile(req.user.sub, req.user.role, updateDto); }
 
   @UseGuards(AuthGuard)
+  @Patch('alterar-senha')
+  async alterarSenha(@Request() req, @Body() body: { senhaAtual: string; novaSenha: string }) {
+    return this.authService.changePassword(req.user.sub, body.senhaAtual, body.novaSenha);
+  }
+
+  @UseGuards(AuthGuard)
   @Delete('perfil')
   async excluirConta(@Request() req) { return this.authService.deleteAccount(req.user.sub); }
 

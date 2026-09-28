@@ -33,4 +33,16 @@ export class CursosController {
   @UseGuards(AuthGuard)
   @Post(':id/matricular')
   async matricular(@Request() req, @Param('id') id: string) { return this.cursosService.matricularAluno(req.user.sub, id); }
+
+  @UseGuards(AuthGuard)
+  @Post('aulas/:aulaId/duvidas')
+  async adicionarDuvida(@Request() req, @Param('aulaId') aulaId: string, @Body() body: { texto: string }) {
+    return this.cursosService.adicionarDuvida(req.user.sub, aulaId, body.texto);
+  }
+
+  @UseGuards(AuthGuard)
+  @Post('aulas/:aulaId/progresso')
+  async registrarProgresso(@Request() req, @Param('aulaId') aulaId: string) {
+    return this.cursosService.registrarProgresso(req.user.sub, aulaId);
+  }
 }
