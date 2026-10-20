@@ -12,6 +12,7 @@ import { UploadModule } from './upload/upload.module';
 import { PagamentosModule } from './pagamentos/pagamentos.module';
 import { AvaliacoesModule } from './avaliacoes/avaliacoes.module';
 import { NotificacoesModule } from './notificacoes/notificacoes.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -21,7 +22,7 @@ import { NotificacoesModule } from './notificacoes/notificacoes.module';
       serveRoot: '/uploads',
     }),
     AuthModule, CursosModule, AulasModule, AgendamentosModule, UploadModule, PagamentosModule,
-    AvaliacoesModule, NotificacoesModule
+    AvaliacoesModule, NotificacoesModule, EmailModule
   ],
   controllers: [AppController],
   providers: [AppService],

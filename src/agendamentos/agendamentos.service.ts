@@ -13,6 +13,43 @@ export class AgendamentosService {
     private zoomService: ZoomService
   ) {}
 
+  async atualizarAulasExpiradas() {
+    try {
+      const agora = new Date();
+      const aulas = await this.prisma.aulaAgendada.findMany({
+        where: {
+          status: { in: ['AGENDADA', 'PENDENTE_PAGAMENTO', 'PAGA'] }
+        }
+      });
+
+      const idsParaConcluir: string[] = [];
+
+      for (const aula of aulas) {
+        try {
+          const [ano, mes, dia] = aula.data_aula.split('-').map(Number);
+          const horaStr = aula.hora_fim || aula.hora_inicio;
+          const [h, m] = horaStr.split(':').map(Number);
+          const dataHoraFim = new Date(ano, mes - 1, dia, aula.hora_fim ? h : h + 1, m);
+
+          if (dataHoraFim < agora) {
+            idsParaConcluir.push(aula.id);
+          }
+        } catch {
+          // formato não suportado, pula
+        }
+      }
+
+      if (idsParaConcluir.length > 0) {
+        await this.prisma.aulaAgendada.updateMany({
+          where: { id: { in: idsParaConcluir } },
+          data: { status: 'CONCLUIDA' }
+        });
+      }
+    } catch (e) {
+      console.error('Erro ao atualizar aulas expiradas:', e);
+    }
+  }
+
   async agendarAula(alunoId: string, dto: CreateAgendamentoDto) {
     const professor = await this.prisma.professorProfile.findUnique({
       where: { id: dto.professorId },
@@ -22,14 +59,12 @@ export class AgendamentosService {
       throw new NotFoundException('Professor não encontrado.');
     }
 
-    // --- VERIFICAÇÃO CONTRA AGENDAMENTO DUPLO (CONCORRÊNCIA) ---
     const aulaExistente = await this.prisma.aulaAgendada.findFirst({
       where: {
         professorId: dto.professorId,
         data_aula: dto.data_aula,
         hora_inicio: dto.hora_inicio,
         status: {
-          // Se estiver cancelada, o horário volta a ficar livre para agendar!
           in: ['AGENDADA', 'PENDENTE_PAGAMENTO', 'PAGA'] 
         }
       }
@@ -39,11 +74,9 @@ export class AgendamentosService {
       throw new ConflictException('Este horário acabou de ser reservado por outro aluno. Escolha outro horário.');
     }
 
-    // GERAÇÃO DO LINK
     const hashReuniao = uuidv4().replace(/-/g, '');
     const linkReuniao = `https://meet.jit.si/LearnAndGo_${hashReuniao}`;
 
-    // SALVA A AULA LINCANDO O ALUNO E O PROFESSOR
     const aula = await this.prisma.aulaAgendada.create({
       data: {
         alunoId: alunoId,
@@ -58,7 +91,6 @@ export class AgendamentosService {
       },
     });
 
-    // Notifica o professor
     await this.prisma.notificacao.create({
       data: {
         userId: professor.userId,
@@ -71,8 +103,8 @@ export class AgendamentosService {
     return { message: 'Aula agendada com sucesso!', aula };
   }
 
-  // AGENDA DO ALUNO (Traz os dados do professor pra mostrar na tela)
   async listarAulasDoAluno(alunoId: string) {
+    await this.atualizarAulasExpiradas();
     return this.prisma.aulaAgendada.findMany({
       where: { alunoId: alunoId },
       include: { professor: { select: { id: true, nome: true, sobrenome: true, foto_url: true } } },
@@ -80,12 +112,12 @@ export class AgendamentosService {
     });
   }
 
-  // AGENDA DO PROFESSOR (Traz os dados do aluno pra mostrar na tela)
   async listarAulasDoProfessor(userId: string) {
     const professor = await this.prisma.professorProfile.findUnique({ where: { userId } });
     
     if (!professor) throw new NotFoundException('Perfil não encontrado.');
 
+    await this.atualizarAulasExpiradas();
     return this.prisma.aulaAgendada.findMany({
       where: { professorId: professor.id },
       include: { aluno: { select: { id: true, nome: true, sobrenome: true, email: true } } },
@@ -93,7 +125,6 @@ export class AgendamentosService {
     });
   }
 
-  // ROTA PARA O FRONTEND SABER QUAIS HORÁRIOS ESTÃO OCUPADOS
   async buscarHorariosOcupados(professorId: string, dataAula: string) {
     const aulas = await this.prisma.aulaAgendada.findMany({
       where: {
@@ -104,14 +135,10 @@ export class AgendamentosService {
       select: { hora_inicio: true }
     });
 
-    // Retorna apenas um array com as strings das horas ocupadas. Ex: ["09:00", "14:00"]
     return aulas.map(aula => aula.hora_inicio);
   }
 
-  // Adicione essa função no AgendamentosService
-
   async fecharAulasDoDia(dataAula: string) {
-    // Busca todas as aulas que estavam agendadas para hoje
     const aulas = await this.prisma.aulaAgendada.findMany({
       where: { data_aula: dataAula, status: 'AGENDADA' }
     });
@@ -119,19 +146,15 @@ export class AgendamentosService {
     for (const aula of aulas) {
       if (!aula.id_reuniao_zoom) continue;
 
-      // Chama a auditoria antifraude do Zoom
       const aulaAconteceu = await this.zoomService.verificarSeAulaAconteceu(aula.id_reuniao_zoom);
 
       if (aulaAconteceu) {
-        // Aula confirmada! O professor recebe.
         await this.prisma.aulaAgendada.update({
           where: { id: aula.id },
-          data: { status: 'REALIZADA' }
+          data: { status: 'CONCLUIDA' }
         });
-        // Aqui você acionaria o Stripe Connect para transferir o $ pro professor
       } else {
-        // Fraude ou o professor faltou. Estorna o cartão do aluno!
-        if (aula.stripe_payment_id) { // <-- Adicionamos esta verificação
+        if (aula.stripe_payment_id) {
           await this.stripeService.reembolsarPagamento(aula.stripe_payment_id);
         }
         

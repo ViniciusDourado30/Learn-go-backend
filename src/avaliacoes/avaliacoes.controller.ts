@@ -10,7 +10,16 @@ export class AvaliacoesController {
   @UseGuards(AuthGuard)
   @Post()
   async criarAvaliacao(@Request() req, @Body() dto: CreateAvaliacaoDto) {
+    if (req.user.role !== 'ALUNO') {
+      throw new UnauthorizedException('Apenas alunos podem avaliar professores.');
+    }
     return this.avaliacoesService.criarAvaliacao(req.user.sub, dto);
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('pode-avaliar/:id')
+  async podeAvaliar(@Request() req, @Param('id') professorId: string) {
+    return this.avaliacoesService.podeAvaliar(req.user.sub, professorId);
   }
 
   @UseGuards(AuthGuard)

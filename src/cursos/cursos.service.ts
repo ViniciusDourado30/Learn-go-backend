@@ -62,10 +62,49 @@ export class CursosService {
   }
 
   async listarMeusCursos(userId: string) {
-    const matriculas = await this.prisma.matriculaCurso.findMany({ where: { alunoId: userId }, include: { curso: { include: { professor: true, modulos: { include: { aulas: { include: { materiais: true, progressos: true, duvidas: { include: { aluno: true, respostas: { include: { autor: true } } } } } } } } } } } });
+    const matriculas = await this.prisma.matriculaCurso.findMany({
+      where: { alunoId: userId },
+      include: {
+        curso: {
+          include: {
+            professor: true,
+            modulos: {
+              include: {
+                aulas: {
+                  include: {
+                    materiais: true,
+                    progressos: { where: { alunoId: userId } },
+                    duvidas: { include: { aluno: true, respostas: { include: { autor: true } } } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
     return matriculas.map(m => {
-      const duracao_total_minutos = m.curso.modulos.reduce((acc, mod) => acc + mod.aulas.reduce((a, aula) => a + (aula.duracao_minutos || 0), 0), 0);
-      return { ...m.curso, progress: m.progresso, duracao_total_minutos };
+      const duracao_total_minutos = m.curso.modulos.reduce(
+        (acc, mod) => acc + mod.aulas.reduce((a, aula) => a + (aula.duracao_minutos || 0), 0),
+        0
+      );
+
+      const totalAulas = m.curso.modulos.reduce((acc, mod) => acc + mod.aulas.length, 0);
+      const aulasConcluidas = m.curso.modulos.reduce(
+        (acc, mod) => acc + mod.aulas.filter(a => a.progressos.some(p => p.concluida)).length,
+        0
+      );
+      const calculatedProgress = totalAulas > 0 ? Math.round((aulasConcluidas / totalAulas) * 100) : m.progresso;
+
+      return {
+        ...m.curso,
+        progress: calculatedProgress,
+        progresso: calculatedProgress,
+        totalAulas,
+        aulasConcluidas,
+        duracao_total_minutos
+      };
     });
   }
 
@@ -81,10 +120,40 @@ export class CursosService {
   }
 
   async registrarProgresso(userId: string, aulaId: string) {
-    return this.prisma.progressoAula.upsert({
+    const progresso = await this.prisma.progressoAula.upsert({
       where: { alunoId_aulaId: { alunoId: userId, aulaId } },
-      update: { concluida: true },
+      update: { concluida: true, criado_em: new Date() },
       create: { alunoId: userId, aulaId, concluida: true }
     });
+
+    try {
+      const aula = await this.prisma.aula.findUnique({
+        where: { id: aulaId },
+        include: { modulo: { select: { cursoId: true } } }
+      });
+
+      if (aula?.modulo?.cursoId) {
+        const cursoId = aula.modulo.cursoId;
+        const totalAulas = await this.prisma.aula.count({
+          where: { modulo: { cursoId } }
+        });
+        const concluidas = await this.prisma.progressoAula.count({
+          where: {
+            alunoId: userId,
+            concluida: true,
+            aula: { modulo: { cursoId } }
+          }
+        });
+        const progressoPercent = totalAulas > 0 ? Math.round((concluidas / totalAulas) * 100) : 0;
+        await this.prisma.matriculaCurso.updateMany({
+          where: { alunoId: userId, cursoId },
+          data: { progresso: progressoPercent }
+        });
+      }
+    } catch (err) {
+      console.error('Erro ao atualizar progresso na matrícula:', err);
+    }
+
+    return progresso;
   }
 }
